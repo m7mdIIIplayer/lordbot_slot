@@ -1,1 +1,285 @@
 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>3×3 Reel Slot</title>
+
+<style>
+    body {
+        margin: 0;
+        height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background: #0d0d0d;
+        font-family: Arial, sans-serif;
+        color: #fff;
+        overflow: hidden;
+    }
+
+    .slot-box {
+        background: #151515;
+        padding: 30px;
+        border-radius: 18px;
+        width: 380px;
+        box-shadow: 0 0 40px rgba(0,0,0,0.7);
+        text-align: center;
+        transition: box-shadow 0.4s ease;
+    }
+
+    .reels-container {
+        display: flex;
+        justify-content: space-between;
+        margin: 20px 0 30px;
+    }
+
+    .reel {
+        width: 100px;
+        height: 300px;
+        background: #222;
+        border-radius: 10px;
+        overflow: hidden;
+        position: relative;
+        border: 2px solid #333;
+    }
+
+    .strip {
+        position: absolute;
+        width: 100%;
+        top: 0;
+        left: 0;
+    }
+
+    .symbol {
+        width: 100%;
+        height: 100px;
+        font-size: 55px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background: #222;
+    }
+
+    button {
+        background: #ffaa00;
+        border: none;
+        padding: 12px 32px;
+        border-radius: 8px;
+        font-size: 18px;
+        cursor: pointer;
+        font-weight: bold;
+        transition: background 0.2s ease, transform 0.1s ease;
+    }
+    button:hover {
+        background: #ffcc44;
+        transform: translateY(-1px);
+    }
+
+    #status {
+        margin-top: 20px;
+        font-size: 24px;
+        font-weight: bold;
+    }
+
+    /* GLOW on win */
+    .glow {
+        box-shadow: 0 0 10px #00ffae, 0 0 35px #00ffae;
+    }
+
+    /* Reel Shake */
+    @keyframes shake {
+        0% { transform: translateX(0px); }
+        25% { transform: translateX(-5px); }
+        50% { transform: translateX(5px); }
+        75% { transform: translateX(-4px); }
+        100% { transform: translateX(0px); }
+    }
+    .shake {
+        animation: shake 0.4s;
+    }
+
+    /* Coin Drop Animation */
+    .coin {
+        position: fixed;
+        top: -50px;
+        font-size: 35px;
+        animation: dropCoin 1.4s linear forwards;
+        pointer-events: none;
+        z-index: 9999;
+    }
+
+    @keyframes dropCoin {
+        0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+        100% { transform: translateY(110vh) rotate(360deg); opacity: 0; }
+    }
+
+</style>
+
+</head>
+<body>
+
+<div class="slot-box" id="box">
+    <h2>3×3 Slot Game</h2>
+
+    <div class="reels-container">
+        <div class="reel"><div class="strip" id="strip1"></div></div>
+        <div class="reel"><div class="strip" id="strip2"></div></div>
+        <div class="reel"><div class="strip" id="strip3"></div></div>
+    </div>
+
+    <button id="spinBtn">SPIN</button>
+    <div id="status"></div>
+</div>
+
+<script>
+/* --------- DATA --------- */
+const symbols = ["🍒","🍋","🍉","⭐","7️⃣"];
+const strips = [
+    document.getElementById("strip1"),
+    document.getElementById("strip2"),
+    document.getElementById("strip3")
+];
+
+function randomSymbol() {
+    return symbols[Math.floor(Math.random() * symbols.length)];
+}
+
+function fillStrip(strip){
+    strip.innerHTML = "";
+    for(let i=0; i<30; i++){
+        const div = document.createElement("div");
+        div.className = "symbol";
+        div.textContent = randomSymbol();
+        strip.appendChild(div);
+    }
+}
+
+function getURLResult(){
+    const p = new URLSearchParams(window.location.search);
+    return p.get("result") === "1" ? 1 : 0;
+}
+
+/* --------- SOUNDS --------- */
+const spinSound = new Audio("spin.mp3");
+const winSound  = new Audio("win.mp3");
+const loseSound = new Audio("lose.mp3");
+
+function safePlay(audio, loop=false){
+    audio.loop = loop;
+    audio.currentTime = 0;
+    audio.volume = 1;
+    audio.play().catch(()=>{});
+}
+
+/* --------- COIN DROP --------- */
+function dropCoins() {
+    for (let i = 0; i < 25; i++) {
+        const coin = document.createElement("div");
+        coin.className = "coin";
+        coin.textContent = "🪙";
+        coin.style.left = Math.random() * 95 + "vw";
+        coin.style.animationDelay = (Math.random() * 0.5) + "s";
+        document.body.appendChild(coin);
+
+        setTimeout(() => coin.remove(), 1500);
+    }
+}
+
+/* --------- MAIN SPIN --------- */
+let hasSpun = false;
+
+document.getElementById("spinBtn").addEventListener("click", () => {
+
+    if (hasSpun) return;
+    hasSpun = true;
+
+    const btn   = document.getElementById("spinBtn");
+    const box   = document.getElementById("box");
+    const status= document.getElementById("status");
+
+    btn.disabled = true;
+    box.classList.remove("glow");
+    status.textContent = "";
+
+    strips.forEach(fillStrip);
+
+    const result = getURLResult();
+
+    let final = [];
+    if(result === 1){
+        const lucky = randomSymbol();
+        final = [lucky, lucky, lucky];
+    } else {
+        final = [randomSymbol(), randomSymbol(), randomSymbol()];
+        while(final[0] === final[1] && final[1] === final[2]){
+            final = [randomSymbol(), randomSymbol(), randomSymbol()];
+        }
+    }
+
+    safePlay(spinSound, true);
+
+    let offset = [0,0,0];
+    let speed  = 28;        // FAST start
+    const tick = 20;
+    let elapsed = 0;
+    let phase = "fast";
+
+    const loop = setInterval(() => {
+        elapsed += tick;
+
+        if(phase === "fast" && elapsed > 1500){
+            phase = "slow";
+        }
+
+        if(phase === "slow" && speed > 4){
+            speed -= 0.35;   // SMOOTH SLOW-EASE-OUT
+        }
+
+        for(let i=0;i<3;i++){
+            offset[i] += speed;
+            if(offset[i] >= 100){
+                offset[i] -= 100;
+                strips[i].appendChild(strips[i].firstElementChild);
+            }
+            strips[i].style.top = offset[i] + "px";
+        }
+
+        if(phase === "slow" && speed <= 4){
+            clearInterval(loop);
+            spinSound.pause();
+
+            box.classList.add("shake");
+            setTimeout(()=> box.classList.remove("shake"), 450);
+
+            strips.forEach((strip, i) => {
+                strip.innerHTML = "";
+                for(let r=0; r<3; r++){
+                    const div = document.createElement("div");
+                    div.className = "symbol";
+                    div.textContent = (r === 1) ? final[i] : randomSymbol();
+                    strip.appendChild(div);
+                }
+                strip.style.top = "0px";
+            });
+
+            if(result === 1){
+                box.classList.add("glow");
+                safePlay(winSound);
+                dropCoins();
+                status.textContent = "🎉 ربحت 5000!";
+            } else {
+                safePlay(loseSound);
+                status.textContent = "❌ خسرت حظ أوفر";
+            }
+
+            btn.style.display = "none";
+        }
+
+    }, tick);
+
+});
+</script>
+
+</body>
+</html>
